@@ -1,57 +1,72 @@
 // Imgur API functionality.
 // ===============
 module.exports = {
+    https: require('https'),
+    creditsEndPoint: '/3/credits',
+    searchEndPoint: '/3/gallery/search/',
+    
+    // Base GET options - path should be changed by calling function to
+    // reflect which API endpoint is going to be used.
+    getOptions: {
+        encoding: 'UTF-8',
+        hostname: 'api.imgur.com',
+        path: '',
+        port: '443',
+        method: 'GET',
+        headers: {
+            'Authorization': 'Client-ID ' + 'b9ac78f85cc8ca2'
+        }        
+    },
+    
+    // Display information pertaining to remaining credits for usage of API.
     displayCredits: function() {
-        var https = require('https');
-        var getOptions = {
-            hostname: 'api.imgur.com',
-            path: '/3/credits',
-            port: '443',
-            method: 'GET',
-            headers: {
-                'Authorization': 'Client-ID ' + 'b9ac78f85cc8ca2'
-            }
-        }
+        this.getOptions.path = '/3/credits';
         
-        var getReq = https.request(getOptions, function(res) {
+        var getReq = this.https.request(this.getOptions, function(res) {
             res.on('data', function(data) {
                 data = JSON.parse(data);
                 console.log(data);
-                console.log(data['data']['UserRemaining']);
             });
         });
         
         getReq.end();
     },
     
-    search: function(query) {
-        var https = require('https');
+    search: function(query, offset, parentRes) {
+        // Utilize the search endpoint.
+        this.getOptions['path'] = this.searchEndPoint + 'top/' + offset + '/?q_all=' + query + '&q_type=jpg';
         
-        var postOptions = {
-            encoding: 'UTF-8',
-            host: 'api.imgur.com',
-            path: '/3/gallery/search/top/0/?q_all=' + query + '&q_type=jpg',
-            port: '443',
-            method: 'GET',
-            headers: {
-                'Authorization': 'Client-ID ' + 'b9ac78f85cc8ca2'
-            }
-        }
-    
-        var postReq = https.request(postOptions, function(res) {
+        var images = [];
+        
+        var getReq = this.https.request(this.getOptions, function(res) {
             var response = '';
+            
             res.on('data', function(data) {
                 response += data;
             });
             
+            // Parse JSON only after the whole object is received.
             res.on('end', function() {
                 response = JSON.parse(response);
                 for (var i in response['data']) {
-                    console.log(response['data'][i]['link']);
+                    var image = response['data'][i];
+                    
+                    // Ignore albums - only want individual images
+                    if (image['is_album'])
+                        continue;
+                        
+                    var imageData = {
+                        url: image['link'],
+                        description: image['description']
+                    }
+                    
+                    images.push(imageData);
                 }
+                
+                parentRes.end(JSON.stringify(images));
             });
-    
         });
-        postReq.end();
+        
+        getReq.end();
     }
 }
